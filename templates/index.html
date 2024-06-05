@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arduino Webová Aplikácia</title>
+    <title>Vzdialený monitoring</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/justgage/1.4.0/justgage.min.js"></script>
@@ -83,7 +83,7 @@
     </style>
 </head>
 <body>
-    <h1>Arduino Webová Aplikácia</h1>
+    <h1>Vzdialený monitoring</h1>
     <div class="button-container">
         <button id="openBtn">Otvoriť</button>
         <button id="startBtn">Štart</button>
@@ -318,6 +318,7 @@
                     resetData(); // Reset data if loaded from CSV
                     csvLoaded = false; // Reset the flag
                 }
+                startTime = Date.now(); // Reset start time to the current time
                 startMonitoring();
             })
             .catch(error => {
@@ -363,18 +364,20 @@
                     const lines = text.split('\n').slice(1);
                     resetData(); // Reset current data before loading new data
                     csvLoaded = true; // Set the flag indicating data was loaded from CSV
-                    startTime = null; // Reset start time
-                    lines.forEach(line => {
+                    startTime = 0; // Initialize start time to zero
+                    lines.forEach((line, index) => {
                         const values = line.split(',');
                         if (values.length === 7) {
                             const [timestamp, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z] = values.map(Number);
-                            addDataPoint({ timestamp, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z }, true);
+                            addDataPoint({ timestamp: index, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z }, true);
                         }
                     });
+                    event.target.value = ''; // Reset the file input value
                 };
                 reader.readAsText(file);
             }
         });
+
 
         document.getElementById('settingsForm').addEventListener('submit', function(event) {
             event.preventDefault();
@@ -427,19 +430,19 @@
         }
 
         function addDataPoint(data, fromCSV = false) {
-            const newTimestamp = fromCSV ? data.timestamp : (data.timestamp).toFixed(1); // Use the provided timestamp with one decimal place
+            const currentTime = fromCSV ? data.timestamp : (Date.now() - startTime) / 1000; // Calculate time from start
 
             const li = document.createElement('li');
-            li.textContent = `Čas: ${newTimestamp} s, Accel X: ${data.accel_x}, Accel Y: ${data.accel_y}, Accel Z: ${data.accel_z}, Gyro X: ${data.gyro_x}, Gyro Y: ${data.gyro_y}, Gyro Z: ${data.gyro_z}`;
+            li.textContent = `Čas: ${currentTime.toFixed(1)} s, Accel X: ${data.accel_x}, Accel Y: ${data.accel_y}, Accel Z: ${data.accel_z}, Gyro X: ${data.gyro_x}, Gyro Y: ${data.gyro_y}, Gyro Z: ${data.gyro_z}`;
             dataList.appendChild(li);
 
-            accelChart.data.labels.push(newTimestamp);
+            accelChart.data.labels.push(currentTime.toFixed(1));
             accelChart.data.datasets[0].data.push(data.accel_x);
             accelChart.data.datasets[1].data.push(data.accel_y);
             accelChart.data.datasets[2].data.push(data.accel_z);
             accelChart.update();
 
-            gyroChart.data.labels.push(newTimestamp);
+            gyroChart.data.labels.push(currentTime.toFixed(1));
             gyroChart.data.datasets[0].data.push(data.gyro_x);
             gyroChart.data.datasets[1].data.push(data.gyro_y);
             gyroChart.data.datasets[2].data.push(data.gyro_z);
@@ -470,7 +473,6 @@
         });
 
         function resetData() {
-            startTime = null;
             accelChart.data.labels = [];
             accelChart.data.datasets.forEach(dataset => dataset.data = []);
             accelChart.update();
@@ -480,6 +482,7 @@
             dataList.innerHTML = '';
             resetGauges();
             dataPoints = []; // Clear the stored data points
+            startTime = 0; // Reset start time
         }
 
         function resetGauges() {
